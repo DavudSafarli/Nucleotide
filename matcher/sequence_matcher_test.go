@@ -7,6 +7,39 @@ import (
 	"time"
 )
 
+func BenchSequenceMatcher(input string, b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		buff := &bytes.Buffer{}
+		buff.WriteString(input)
+		matcher := NewSequenceMatcher(buff, SequenceMatcherOptions{
+			precedingCharCount:  5,
+			sequence:            []byte("AGTA"),
+			succeedingCharCount: 7,
+			eos:                 'ε',
+		})
+		var matchesChan <-chan MatchResult = matcher.Run()
+	upper:
+		for {
+			select {
+			case _, isOpen := <-matchesChan:
+				if !isOpen {
+					break upper
+				}
+			}
+		}
+	}
+}
+
+func BenchmarkSequenceMatcherX1(b *testing.B) {
+	BenchSequenceMatcher("AAGTACGTGCAGTGAGTAGTAGACCTGACGTAGACCGATATAAGTAGCTAε", b)
+}
+func BenchmarkSequenceMatcherX2(b *testing.B) {
+	BenchSequenceMatcher("AAGTACGTGCAGTGAGTAGTAGACCTGACGTAGACCGATATAAGTAGCTAAAGTACGTGCAGTGAGTAGTAGACCTGACGTAGACCGATATAAGTAGCTAε", b)
+}
+func BenchmarkSequenceMatcherX4(b *testing.B) {
+	BenchSequenceMatcher("AAGTACGTGCAGTGAGTAGTAGACCTGACGTAGACCGATATAAGTAGCTAAAGTACGTGCAGTGAGTAGTAGACCTGACGTAGACCGATATAAGTAGCTAAAGTACGTGCAGTGAGTAGTAGACCTGACGTAGACCGATATAAGTAGCTAAAGTACGTGCAGTGAGTAGTAGACCTGACGTAGACCGATATAAGTAGCTAε", b)
+}
+
 func TestSequenceMatcher(t *testing.T) {
 	type inputConfig struct {
 		x     int

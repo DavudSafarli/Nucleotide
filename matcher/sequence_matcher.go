@@ -3,7 +3,6 @@ package matcher
 import (
 	"bufio"
 	"io"
-	"reflect"
 )
 
 // SequenceMatcherOptions are the options for creating a new SequenceMatcher
@@ -26,7 +25,7 @@ type SequenceMatcher struct {
 	reader  io.Reader
 	options SequenceMatcherOptions
 
-	ch            chan MatchResult
+	ch chan MatchResult
 
 	// SequenceMatcher holds a queue for each of Succeeding, Current and Preceding elements.
 	preQueue      *queue
@@ -35,8 +34,8 @@ type SequenceMatcher struct {
 }
 
 // NewSequenceMatcher returns a new SequenceMatcher for finding sequences in a stream
-func NewSequenceMatcher(reader io.Reader, options SequenceMatcherOptions) *SequenceMatcher {
-	return &SequenceMatcher{
+func NewSequenceMatcher(reader io.Reader, options SequenceMatcherOptions) SequenceMatcher {
+	return SequenceMatcher{
 		reader:        reader,
 		options:       options,
 		ch:            make(chan MatchResult, 1),
@@ -47,7 +46,7 @@ func NewSequenceMatcher(reader io.Reader, options SequenceMatcherOptions) *Seque
 }
 
 // sendMatch sends current Match to the channel
-func (m *SequenceMatcher) sendMatch() {
+func (m SequenceMatcher) sendMatch() {
 	m.ch <- MatchResult{
 		preceding:  string(m.preQueue.getElements()),
 		match:      string(m.matchingQueue.getElements()),
@@ -59,7 +58,7 @@ func (m *SequenceMatcher) sendMatch() {
 // Overflowed element from the SucceedingQueue will be added to MatchingQueue.
 // Overflowed element of MatchingQueue will also be added to PrecedingQueue.
 // Overflowed element of PrecedingQueue will be thrown away
-func (m *SequenceMatcher) addByte(b byte) {
+func (m SequenceMatcher) addByte(b byte) {
 	b, overflowed := m.sucQueue.add(b)
 	if !overflowed {
 		return
@@ -74,25 +73,35 @@ func (m *SequenceMatcher) addByte(b byte) {
 // pop pops one element from SucceedingQueue adds it to MatchingQueue.
 // Overflowed element of MatchingQueue will be added to PrecedingQueue.
 // Overflowed element of PrecedingQueue will be thrown away
-func (m *SequenceMatcher) pop() {
+func (m SequenceMatcher) pop() {
 	b := m.sucQueue.pop()
 	b, _ = m.matchingQueue.add(b)
 	m.preQueue.add(b)
 }
 
 // isMatch checks if current elements in the MatchingQueue is a valid match for wanted sequence
-func (m *SequenceMatcher) isMatch() bool {
-	return reflect.DeepEqual(m.matchingQueue.getElements(), m.options.sequence)
+func (m SequenceMatcher) isMatch() bool {
+	sequence := m.matchingQueue.getElements()
+	if len(sequence) != len(m.options.sequence) {
+		return false
+	}
+
+	for i := 0; i < len(sequence); i++ {
+		if sequence[i] != m.options.sequence[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // Run starts the matching process
-func (m *SequenceMatcher) Run() <-chan MatchResult {
+func (m SequenceMatcher) Run() <-chan MatchResult {
 	go m.readStreamAndMatchSequences()
 	return m.ch
 }
 
 // readStreamAndMatchSequences reads from stream rune-by-rune until encountering EOS or EOF.
-func (m *SequenceMatcher) readStreamAndMatchSequences() {
+func (m SequenceMatcher) readStreamAndMatchSequences() {
 	defer close(m.ch)
 	reader := bufio.NewReader(m.reader)
 
